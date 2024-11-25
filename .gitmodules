@@ -1,0 +1,3 @@
+[submodule "hash-suite"]
+	path = hash-suite
+	url = https://github.com/Nanovative/smhasher.git
