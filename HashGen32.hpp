@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <iostream>
 #include "HashFunc32.hpp"
 
 namespace Hash32
@@ -14,40 +15,33 @@ namespace Hash32
     class HashGen
     {
     public:
-        HashGen(int k = 1, uint32_t maxRange = 0) : k_(k), maxRange_(maxRange) {}
+        HashGen(uint32_t k = 1, uint32_t maxRange = 0) : k_(k), maxRange_(maxRange) {
+            std::cout << "Hash range of Hash Gen = " << maxRange_ << std::endl;
+        }
 
-        std::vector<uint32_t> *Serial(
+        std::vector<uint32_t> Serial(
             const std::vector<uint8_t> &data,
-            const std::string &algorithm,
-            std::vector<uint32_t> *hashes = nullptr)
+            const std::string &algorithm)
         {
-            if (hashes == nullptr)
-            {
-                std::vector<uint32_t> vec = std::vector<uint32_t>();
-                hashes = &vec;
-            }
+            std::vector<uint32_t> vec;
 
             for (int i = 0; i < k_; ++i)
             {
                 std::vector<uint32_t> hashArray = Hash32::Generate(data, algorithm, i);
-                hashes->push_back(this->moduloHash(hashArray[0]));
+                vec.push_back(this->moduloHash(hashArray[0]));
             }
 
-            return hashes;
+            return vec;
         }
 
-        std::vector<uint32_t> *KirMitz(
+        std::vector<uint32_t> KirMitz(
             const std::vector<uint8_t> &data,
-            const std::string &algorithm,
-            std::vector<uint32_t> *hashes = nullptr)
+            const std::string &algorithm)
         {
-            if (hashes == nullptr)
-            {
-                std::vector<uint32_t> vec = std::vector<uint32_t>();
-                hashes = &vec;
-            }
+            std::vector<uint32_t> vec;
+
             std::vector<uint32_t> hashArray = Hash32::Generate(data, algorithm);
-            hashes->push_back(this->moduloHash(hashArray[0]));
+            vec.push_back(this->moduloHash(hashArray[0]));
 
             for (int i = 1; i < k_; ++i)
             {
@@ -60,24 +54,20 @@ namespace Hash32
                 }
 
                 uint32_t hash = h1 + h2;
-                hashes->push_back(this->moduloHash(hash));
+                vec.push_back(this->moduloHash(hash));
             }
 
-            return hashes;
+            return vec;
         }
 
-        std::vector<uint32_t> *EDH(
+        std::vector<uint32_t> EDH(
             const std::vector<uint8_t> &data,
-            const std::string &algorithm,
-            std::vector<uint32_t> *hashes = nullptr)
+            const std::string &algorithm)
         {
-            if (hashes == nullptr)
-            {
-                std::vector<uint32_t> vec = std::vector<uint32_t>();
-                hashes = &vec;
-            }
+            std::vector<uint32_t> vec;
+
             std::vector<uint32_t> hashArray = Hash32::Generate(data, algorithm);
-            hashes->push_back(hashArray[0]);
+            vec.push_back(this->moduloHash(hashArray[0]));
 
             for (int i = 1; i < k_; ++i)
             {
@@ -91,16 +81,15 @@ namespace Hash32
                 {
                     hashArray[0] = this->moduloHash(hashArray[0] + newSeed);
                 }
-                hashes->push_back(hashArray[0]);
+                vec.push_back(hashArray[0]);
             }
-            return hashes;
+            return vec;
         }
 
-        std::vector<uint32_t> *Execute(
+        std::vector<uint32_t> Execute(
             const std::vector<uint8_t> &data,
             const std::string &algorithm,
-            const std::string &scheme = SCHEME_SERIAL,
-            std::vector<uint32_t> *hashes = nullptr)
+            const std::string &scheme = SCHEME_SERIAL)
         {
             if (scheme == SCHEME_SERIAL)
             {
@@ -114,11 +103,15 @@ namespace Hash32
             {
                 return this->EDH(data, algorithm);
             }
-            return nullptr;
+            return {};
+        }
+
+        uint32_t MaxRange() {
+            return maxRange_;
         }
 
     private:
-        int k_;        // Number of hash functions
+        uint32_t k_;        // Number of hash functions
         uint32_t maxRange_; // Maximum range for the hashes
         uint32_t moduloHash(uint32_t rawHash)
         {

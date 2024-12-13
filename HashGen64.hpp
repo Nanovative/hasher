@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <iostream>
 #include "HashFunc64.hpp" // Assuming you have a 64-bit version of the Hash32 class
 
 namespace Hash64
@@ -14,41 +15,33 @@ namespace Hash64
     class HashGen
     {
     public:
-        HashGen(int k, uint64_t maxRange) : k_(k), maxRange_(maxRange) {}
+        HashGen(uint64_t k = 1, uint64_t maxRange = 0) : k_(k), maxRange_(maxRange) {
+            std::cout << "Hash range of Hash Gen = " << maxRange_ << std::endl;
+        }
 
-        std::vector<uint64_t> *Serial(
+        std::vector<uint64_t> Serial(
             const std::vector<uint8_t> &data,
-            const std::string &algorithm,
-            std::vector<uint64_t> *hashes = nullptr)
+            const std::string &algorithm)
         {
-            if (hashes == nullptr)
-            {
-                std::vector<uint64_t> vec = std::vector<uint64_t>();
-                hashes = &vec;
-            }
+            std::vector<uint64_t> vec;
 
             for (int i = 0; i < k_; ++i)
             {
                 std::vector<uint64_t> hashArray = Hash64::Generate(data, algorithm, i);
-                hashes->push_back(this->moduloHash(hashArray[0]));
+                vec.push_back(this->moduloHash(hashArray[0]));
             }
 
-            return hashes;
+            return vec;
         }
 
-        std::vector<uint64_t> *KirMitz(
+        std::vector<uint64_t> KirMitz(
             const std::vector<uint8_t> &data,
-            const std::string &algorithm,
-            std::vector<uint64_t> *hashes = nullptr)
+            const std::string &algorithm)
         {
-            if (hashes == nullptr)
-            {
-                std::vector<uint64_t> vec = std::vector<uint64_t>();
-                hashes = &vec;
-            }
+            std::vector<uint64_t> vec;
 
             std::vector<uint64_t> hashArray = Hash64::Generate(data, algorithm);
-            hashes->push_back(this->moduloHash(hashArray[0]));
+            vec.push_back(this->moduloHash(hashArray[0]));
 
             for (int i = 1; i < k_; ++i)
             {
@@ -61,25 +54,20 @@ namespace Hash64
                 }
 
                 uint64_t hash = h1 + h2;
-                hashes->push_back(this->moduloHash(hash));
+                vec.push_back(this->moduloHash(hash));
             }
 
-            return hashes;
+            return vec;
         }
 
-        std::vector<uint64_t> *EDH(
+        std::vector<uint64_t> EDH(
             const std::vector<uint8_t> &data,
-            const std::string &algorithm,
-            std::vector<uint64_t> *hashes = nullptr)
+            const std::string &algorithm)
         {
-            if (hashes == nullptr)
-            {
-                std::vector<uint64_t> vec = std::vector<uint64_t>();
-                hashes = &vec;
-            }
+            std::vector<uint64_t> vec;
 
             std::vector<uint64_t> hashArray = Hash64::Generate(data, algorithm);
-            hashes->push_back(hashArray[0]);
+            vec.push_back(this->moduloHash(hashArray[0]));
 
             for (int i = 1; i < k_; ++i)
             {
@@ -93,17 +81,16 @@ namespace Hash64
                 {
                     hashArray[0] = this->moduloHash(hashArray[0] + newSeed);
                 }
-                hashes->push_back(hashArray[0]);
+                vec.push_back(hashArray[0]);
             }
 
-            return hashes;
+            return vec;
         }
 
-        std::vector<uint64_t> *Execute(
+        std::vector<uint64_t> Execute(
             const std::vector<uint8_t> &data,
             const std::string &algorithm,
-            const std::string &scheme = SCHEME_SERIAL,
-            std::vector<uint64_t> *hashes = nullptr)
+            const std::string &scheme = SCHEME_SERIAL)
         {
             if (scheme == SCHEME_SERIAL)
             {
@@ -117,11 +104,15 @@ namespace Hash64
             {
                 return this->EDH(data, algorithm);
             }
-            return nullptr;
+            return {};
+        }
+
+        uint64_t MaxRange() {
+            return maxRange_;
         }
 
     private:
-        int k_;        // Number of hash functions
+        uint64_t k_;        // Number of hash functions
         uint64_t maxRange_; // Maximum range for the hashes
 
         uint64_t moduloHash(uint64_t rawHash)
