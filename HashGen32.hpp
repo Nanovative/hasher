@@ -15,7 +15,8 @@ namespace Hash32
     class HashGen
     {
     public:
-        HashGen(uint32_t k = 1, uint32_t maxRange = 0) : k_(k), maxRange_(maxRange) {
+        HashGen(uint32_t k = 1, uint32_t maxRange = 0) : k_(k), maxRange_(maxRange)
+        {
             std::cout << "Hash range of Hash Gen = " << maxRange_ << std::endl;
         }
 
@@ -39,8 +40,17 @@ namespace Hash32
             const std::string &algorithm)
         {
             std::vector<uint32_t> vec;
+            uint32_t baseSeed = 0;
+            uint32_t altSeed = baseSeed + data.size();
 
-            std::vector<uint32_t> hashArray = Hash32::Generate(data, algorithm);
+            std::vector<uint32_t> hashArray = Hash32::Generate(data, algorithm, baseSeed);
+
+            if (hashArray.size() <= 1)
+            {
+                std::vector<uint32_t> subHashArray = Hash32::Generate(data, algorithm, altSeed);
+                hashArray.push_back(subHashArray[0]);
+            }
+
             vec.push_back(this->moduloHash(hashArray[0]));
 
             for (int i = 1; i < k_; ++i)
@@ -48,10 +58,7 @@ namespace Hash32
                 uint32_t h1 = hashArray[0];
                 uint32_t h2 = i;
 
-                if (hashArray.size() > 1)
-                {
-                    h2 *= hashArray[1];
-                }
+                h2 *= hashArray[1];
 
                 uint32_t hash = h1 + h2;
                 vec.push_back(this->moduloHash(hash));
@@ -65,22 +72,23 @@ namespace Hash32
             const std::string &algorithm)
         {
             std::vector<uint32_t> vec;
-
+            uint32_t baseSeed = 0;
+            uint32_t altSeed = baseSeed + data.size();
             std::vector<uint32_t> hashArray = Hash32::Generate(data, algorithm);
+
+            if (hashArray.size() <= 1)
+            {
+                std::vector<uint32_t> subHashArray = Hash32::Generate(data, algorithm, altSeed);
+                hashArray.push_back(subHashArray[0]);
+            }
+
             vec.push_back(this->moduloHash(hashArray[0]));
 
             for (int i = 1; i < k_; ++i)
             {
                 uint32_t newSeed = i + 3;
-                if (hashArray.size() > 1)
-                {
-                    hashArray[0] = this->moduloHash(hashArray[0] + hashArray[1]);
-                    hashArray[1] = this->moduloHash(hashArray[1] + newSeed);
-                }
-                else
-                {
-                    hashArray[0] = this->moduloHash(hashArray[0] + newSeed);
-                }
+                hashArray[0] = this->moduloHash(hashArray[0] + hashArray[1]);
+                hashArray[1] = this->moduloHash(hashArray[1] + newSeed);
                 vec.push_back(hashArray[0]);
             }
             return vec;
@@ -106,7 +114,8 @@ namespace Hash32
             return {};
         }
 
-        uint32_t MaxRange() {
+        uint32_t MaxRange()
+        {
             return maxRange_;
         }
 
