@@ -46,19 +46,53 @@ FNV1A_Pippip_Yurii(const char *key, int wrdlen, uint32_t seed)
 #undef _PADr_KAZE
 } // Last update: 2019-Oct-30, 14 C lines strong, Kaze.
 
+// objsize: 0x1090-0x10df: 79
+uint64_t
+FNV64a(const char *key, int len, uint64_t seed)
+{
+    uint64_t h = seed;
+    uint8_t *data = (uint8_t *)key;
+    const uint8_t *const end = &data[len];
+
+    h ^= UINT64_C(0xcbf29ce484222325);
+    while (data < end)
+    {
+        h ^= *data++;
+        h *= UINT64_C(0x100000001b3);
+    }
+    return h;
+}
+
 namespace Hash32
 {
     constexpr char ALGO_MURMUR3_32[] = "murmur3_32";
     constexpr char ALGO_MURMUR3_128[] = "murmur3_128";
+
     constexpr char ALGO_SHA256[] = "sha256";
+
     constexpr char ALGO_XXH3[] = "xxh3";
-    constexpr char ALGO_FNV1A[] = "fnv1a";
-    constexpr char ALGO_SIPHASH[] = "siphash";
+
+    constexpr char ALGO_FNV1A_32[] = "fnv1a_32";
+    constexpr char ALGO_FNV1A_64_CAST[] = "fnv1a_64_cast";
+    constexpr char ALGO_FNV1A_64_XOR[] = "fnv1a_64_xor";
+    constexpr char ALGO_FNV1A_64_SPLIT[] = "fnv1a_64_split";
+
+    constexpr char ALGO_SIPHASH_32[] = "siphash_32";
+    constexpr char ALGO_SIPHASH_64_CAST[] = "siphash_64_cast";
+    constexpr char ALGO_SIPHASH_64_XOR[] = "siphash_64_xor";
+    constexpr char ALGO_SIPHASH_64_SPLIT[] = "siphash_64_split";
 
     unsigned char *sipHashKey = nullptr;
 
     using keyType = const std::vector<uint8_t>;
     constexpr size_t SHA256_NUM_32BIT_WORDS = SHA256_DIGEST_LENGTH / sizeof(uint32_t);
+
+    std::vector<uint8_t> extendKey(keyType &data, uint8_t val)
+    {
+        std::vector<uint8_t> newData(data);
+        newData.push_back(val);
+        return newData;
+    }
 
     uint32_t HashBytesToUInt32(keyType &hashBytes, int offset = 0)
     {
@@ -129,7 +163,7 @@ namespace Hash32
         return {hash};
     }
 
-    std::vector<uint32_t> HashHalfSipHash_32(keyType &data, uint32_t seed = 0)
+    void initSipHashKey()
     {
         if (sipHashKey == nullptr)
         {
@@ -142,8 +176,59 @@ namespace Hash32
             sipHashKey = new unsigned char[16];
             std::copy(__sipHashKey.begin(), __sipHashKey.begin() + std::min(__sipHashKey.size(), size_t(16)), sipHashKey);
         }
-        uint32_t hash = halfsiphash(sipHashKey, data.data(), data.size());
+    }
+
+    std::vector<uint32_t> HashHalfSipHash_32(keyType &data, uint32_t seed = 0)
+    {
+        initSipHashKey();
+        uint32_t hash;
+        if (seed != 0)
+        {
+            std::vector<uint8_t> newData = extendKey(data, seed);
+            hash = halfsiphash(sipHashKey, newData.data(), newData.size());
+        }
+        else
+        {
+            hash = halfsiphash(sipHashKey, data.data(), data.size());
+        }
         return {hash};
+    }
+
+    uint64_t HashSipHash_64(keyType &data, uint32_t seed = 0)
+    {
+        initSipHashKey();
+        uint64_t hash;
+        if (seed != 0)
+        {
+            std::vector<uint8_t> newData = extendKey(data, seed);
+            hash = siphash(sipHashKey, newData.data(), newData.size());
+        }
+        else
+        {
+            hash = siphash(sipHashKey, data.data(), data.size());
+        }
+        return hash;
+    }
+
+    std::vector<uint32_t> HashSipHash_64_split(keyType &data, uint32_t seed = 0)
+    {
+        uint64_t hash = HashSipHash_64(data, seed);
+        uint32_t h1 = hash & (1 << 32 - 1);
+        uint32_t h2 = hash >> 32;
+        return {h1, h2};
+    }
+
+    std::vector<uint32_t> HashSipHash_64_xor(keyType &data, uint32_t seed = 0)
+    {
+        uint64_t hash = HashSipHash_64(data, seed);
+        uint32_t h1 = hash & (1 << 32 - 1);
+        uint32_t h2 = hash >> 32;
+        return {h1 ^ h2};
+    }
+
+    std::vector<uint32_t> HashSipHash_64_cast(keyType &data, uint32_t seed = 0)
+    {
+        return {uint32_t(HashSipHash_64(data, seed))};
     }
 
     std::vector<uint32_t> HashFNV1a_32(keyType &data, uint32_t seed = 0)
@@ -151,11 +236,45 @@ namespace Hash32
         uint32_t hash = FNV1A_Pippip_Yurii(
             reinterpret_cast<const char *>(data.data()),
             data.size(),
-            0);
+            seed);
         return {hash};
     }
 
-    std::vector<uint32_t> Generate(keyType &data, const std::string &algorithm = "sha256", uint32_t seed = 0)
+    uint64_t HashFNV1a_64(keyType &data, uint32_t seed = 0)
+    {
+        return FNV64a(
+            reinterpret_cast<const char *>(data.data()),
+            data.size(),
+            seed);
+    }
+
+    std::vector<uint32_t> HashFNV1a_64_split(keyType &data, uint32_t seed = 0)
+    {
+        uint64_t hash = HashFNV1a_64(data, seed);
+        uint32_t h1 = hash & (1 << 32 - 1);
+        uint32_t h2 = hash >> 32;
+
+        return {h1, h2};
+    }
+
+    std::vector<uint32_t> HashFNV1a_64_xor(keyType &data, uint32_t seed = 0)
+    {
+        uint64_t hash = HashFNV1a_64(data, seed);
+        uint32_t h1 = hash & (1 << 32 - 1);
+        uint32_t h2 = hash >> 32;
+
+        return {h1 ^ h2};
+    }
+
+    std::vector<uint32_t> HashFNV1a_64_cast(keyType &data, uint32_t seed = 0)
+    {
+        return {uint32_t(HashFNV1a_64(data, seed))};
+    }
+
+    std::vector<uint32_t> Generate(
+        keyType &data,
+        const std::string &algorithm = ALGO_MURMUR3_128,
+        uint32_t seed = 0)
     {
         if (algorithm == ALGO_MURMUR3_32)
         {
@@ -173,13 +292,37 @@ namespace Hash32
         {
             return HashXXH3_32(data, seed);
         }
-        if (algorithm == ALGO_FNV1A)
+        if (algorithm == ALGO_FNV1A_32)
         {
             return HashFNV1a_32(data, seed);
         }
-        if (algorithm == ALGO_SIPHASH)
+        if (algorithm == ALGO_FNV1A_64_SPLIT)
+        {
+            return HashFNV1a_64_split(data, seed);
+        }
+        if (algorithm == ALGO_FNV1A_64_XOR)
+        {
+            return HashFNV1a_64_xor(data, seed);
+        }
+        if (algorithm == ALGO_FNV1A_64_CAST)
+        {
+            return HashFNV1a_64_cast(data, seed);
+        }
+        if (algorithm == ALGO_SIPHASH_32)
         {
             return HashHalfSipHash_32(data, seed);
+        }
+        if (algorithm == ALGO_SIPHASH_64_SPLIT)
+        {
+            return HashSipHash_64_split(data, seed);
+        }
+        if (algorithm == ALGO_SIPHASH_64_XOR)
+        {
+            return HashSipHash_64_xor(data, seed);
+        }
+        if (algorithm == ALGO_SIPHASH_64_CAST)
+        {
+            return HashSipHash_64_cast(data, seed);
         }
         throw std::invalid_argument("Invalid algorithm");
     }
